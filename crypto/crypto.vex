@@ -1,0 +1,30 @@
+package main
+
+import crypto
+import math  // for randomInt
+import datetime
+
+fn main() {
+    let msg: string = "Hello, VextLang!"
+    
+    // 1) SHA‑256
+    let sha: crypto.HashResult = crypto.sha256(msg)
+    println("SHA‑256: " + sha.hexDigest)
+    
+    // 2) HMAC‑SHA512
+    let key: string = crypto.generateKey(32)
+    let hmac: crypto.HMACResult = crypto.hmacSHA512(key, msg)
+    println("HMAC‑SHA512: " + hmac.hexDigest)
+    
+    // 3) Random salt & IV
+    let salt: string = crypto.generateSalt(16)
+    let iv: string   = crypto.generateIV(16)
+    println("Salt: " + salt)
+    println("IV:   " + iv)
+    
+    // 4) AES256‑CBC encrypt/decrypt
+    let enc: crypto.EncryptionResult = crypto.aesEncrypt(msg, key, iv, crypto.MODE_CBC)
+    println("Ciphertext: " + enc.ciphertext)
+    let dec: crypto.EncryptionResult = crypto.aesDecrypt(enc.ciphertext, key, iv, crypto.MODE_CBC)
+    println("Decrypted:  " + dec.plaintext)
+}
