@@ -1,0 +1,16 @@
+package main
+
+import compression
+
+fn main() {
+    let text: string = "The quick brown fox jumps over the lazy dog."
+    println("Original: " + text)
+    
+    // compress
+    let comp: compression.CompressionResult = compression.gzipCompress(text, compression.LEVEL_DEFAULT)
+    println("→ gzipped size: " + toString(comp.compressedSize))
+    
+    // decompress
+    let decomp: compression.DecompressionResult = compression.gzipDecompress(comp.data)
+    println("→ decompressed: " + decomp.data)
+}
