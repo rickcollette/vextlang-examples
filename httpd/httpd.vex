@@ -1,2 +1,128 @@
 package main
-  
+
+import "http"
+import "fs"
+import "string"
+import "console"
+
+fn escape_html(s: string) -> string {
+    // minimal escaping
+    var r = s.replace("&", "&amp;")
+    r = r.replace("<", "&lt;")
+    return r.replace(">", "&gt;")
+}
+
+// Handler for incoming HTTP requests
+fn myHandler(req: http.HttpRequest) -> http.HttpResponse {
+    // Only support GET
+    if req.method != http.HTTP_GET {
+        return {
+            statusCode: http.HTTP_METHOD_NOT_ALLOWED,
+            statusText: http.getHttpStatusText(http.HTTP_METHOD_NOT_ALLOWED),
+            headers: "Content-Type: text/plain",
+            body: "Only GET is supported\n",
+            version: req.version,
+            contentLength: 0,
+            contentType: "text/plain"
+        }
+    }
+
+    // sanitize and jail path
+    var raw = req.path
+    var norm = fs.normalizePath(raw)
+    if norm.contains("..") {
+        return {
+            statusCode: http.HTTP_FORBIDDEN,
+            statusText: http.getHttpStatusText(http.HTTP_FORBIDDEN),
+            headers: "Content-Type: text/plain",
+            body: "Forbidden\n",
+            version: req.version,
+            contentLength: 0,
+            contentType: "text/plain"
+        }
+    }
+
+    var p = norm.trim("/")  // strip leading slash
+
+    // if root, prefer index.html
+    if len(p) == 0 {
+        if fs.exists("index.html") {
+            p = "index.html"
+        } else {
+            // directory listing
+            let list = fs.listDirectory(".")
+            let items = list.split("\n")
+            var html = "<html><body><h1>Directory &quot;./&quot;</h1><ul>"
+            for item in items {
+                if len(item) > 0 {
+                    html = html + "<li><a href=\"" + item + "\">" + escape_html(item) + "</a></li>"
+                }
+            }
+            html = html + "</ul></body></html>"
+            return {
+                statusCode: http.HTTP_OK,
+                statusText: http.getHttpStatusText(http.HTTP_OK),
+                headers: "Content-Type: text/html",
+                body: html,
+                version: req.version,
+                contentLength: 0,
+                contentType: "text/html"
+            }
+        }
+    }
+
+    // now p is either a file or a directory
+    if fs.isDirectory(p) {
+        // list subdirectory
+        let list = fs.listDirectory(p)
+        let items = list.split("\n")
+        var html = "<html><body><h1>Directory &quot;" + escape_html(p) + "&quot;</h1><ul>"
+        for item in items {
+            if len(item) > 0 {
+                html = html + "<li><a href=\"" + p + "/" + item + "\">" + escape_html(item) + "</a></li>"
+            }
+        }
+        html = html + "</ul></body></html>"
+        return {
+            statusCode: http.HTTP_OK,
+            statusText: http.getHttpStatusText(http.HTTP_OK),
+            headers: "Content-Type: text/html",
+            body: html,
+            version: req.version,
+            contentLength: 0,
+            contentType: "text/html"
+        }
+    } else if fs.isFile(p) {
+        // placeholder: fs.readFile would return the file contents
+        let content = fs.readFile(p)  // assume readFile returns a string
+        return {
+            statusCode: http.HTTP_OK,
+            statusText: http.getHttpStatusText(http.HTTP_OK),
+            headers: "Content-Type: text/plain",
+            body: content,
+            version: req.version,
+            contentLength: 0,
+            contentType: "text/plain"
+        }
+    } else {
+        return {
+            statusCode: http.HTTP_NOT_FOUND,
+            statusText: http.getHttpStatusText(http.HTTP_NOT_FOUND),
+            headers: "Content-Type: text/plain",
+            body: "Not found: " + p + "\n",
+            version: req.version,
+            contentLength: 0,
+            contentType: "text/plain"
+        }
+    }
+}
+
+fn main() {
+    // create server on port 8080
+    var server = http.createHttpServer(8080)
+    server = http.setHttpServerHandler(server, { handle: myHandler })
+    let rc = http.startHttpServer(server)
+    if rc != 0 {
+        console.Print("❌ Failed to start HTTP server\n")
+    }
+}
