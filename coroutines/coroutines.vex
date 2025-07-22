@@ -1,0 +1,45 @@
+package main
+
+import coroutine
+import socket   // just for htons if needed
+import math
+
+fn generator(ch: Channel) {
+    for i in 1..10 {
+        let msg = toString(i)
+        sendMessage(ch, { id: i, sender: 0, receiver: 0, data: msg, timestamp: 0, priority: 0 })
+        coroutine.sleepCoroutine(200)
+    }
+    closeChannel(ch)
+}
+
+fn worker(inCh: Channel, outCh: Channel) {
+    while true {
+        let m = receiveMessage(inCh)
+        if len(m.data) == 0 { break }
+        let x = parseInt(m.data)
+        let y = x * x
+        sendMessage(outCh, { id: x, sender: 0, receiver: 0, data: toString(y), timestamp: 0, priority: 0 })
+    }
+    closeChannel(outCh)
+}
+
+fn collector(ch: Channel) {
+    while true {
+        let m = receiveMessage(ch)
+        if len(m.data) == 0 { break }
+        println("Result: " + m.data)
+    }
+}
+
+fn main() {
+    let ch1 = createChannel("gen→work", 5)
+    let ch2 = createChannel("work→col", 5)
+    
+    go({ execute: generator, data: "" })
+    go({ execute: worker,    data: "" })
+    go({ execute: collector, data: "" })
+    
+    // Let pipeline finish
+    coroutine.sleepCoroutine(5000)
+}
