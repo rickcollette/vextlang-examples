@@ -1,0 +1,17 @@
+package main
+
+import datetime
+
+fn main() {
+    let now: datetime.Timestamp = datetime.nowLocal()
+    println("Local now:  " + datetime.formatISO8601(now))
+    
+    let later = datetime.addDuration(now, datetime.durationFromHours(5))
+    println("In +5h:     " + datetime.formatRFC3339(later))
+    
+    let today = datetime.todayLocal()
+    println("Today:      " + datetime.formatDate(today, datetime.FORMAT_UNIX))
+    
+    let d = datetime.createDate(1990, 7, 22, 0, 0, 0)
+    println("You are ~" + toString(datetime.getAge(d)) + " years old.")
+}
