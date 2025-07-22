@@ -1,0 +1,120 @@
+package main
+
+import "socket"
+import "datetime"
+import "coroutine"
+import "console"
+import "string"
+
+// ICMP constants
+const ICMP_ECHO_REQUEST: int = 8
+const ICMP_ECHO_REPLY:   int = 0
+
+// Build a simple ICMP echo packet: [type, code, checksum(2), id(2), seq(2), payload...]
+fn makeEchoPacket(id: int, seq: int, payload: string) -> string {
+    var buf = string.char(ICMP_ECHO_REQUEST)
+            + string.char(0)            // code
+            + string.char(0) + string.char(0)   // checksum placeholder
+            + string.char((id >> 8) & 0xFF)
+            + string.char(id & 0xFF)
+            + string.char((seq >> 8) & 0xFF)
+            + string.char(seq & 0xFF)
+            + payload
+
+    // checksum: ones‑complement of sum of 16‑bit words
+    var sum = 0
+    var i = 0
+    while i < len(buf) {
+        var hi = buf[i].toInt()
+        var lo = 0
+        if i + 1 < len(buf) {
+            lo = buf[i+1].toInt()
+        }
+        sum = sum + ((hi << 8) + lo)
+        i = i + 2
+    }
+    // fold
+    while (sum >> 16) != 0 {
+        sum = (sum & 0xFFFF) + (sum >> 16)
+    }
+    var checksum = ~sum & 0xFFFF
+    // put checksum back
+    buf = buf[0:2] 
+        + string.char((checksum >> 8) & 0xFF) 
+        + string.char(checksum & 0xFF)
+        + buf[4:]
+    return buf
+}
+
+// send one ping and wait for reply
+fn pingOnce(raw: socket.Socket, addr: socket.NetworkAddress, id: int, seq: int, timeoutMs: int) {
+    // payload: current timestamp
+    var nowTs = datetime.now().seconds.toString()
+    var packet = makeEchoPacket(id, seq, nowTs)
+
+    // send
+    let sent = socket.sendTo(raw, packet, addr)
+    if sent < len(packet) {
+        console.Print("✗ send failed\n")
+        return
+    }
+
+    // receive buffer
+    var buf = socket.createNetworkBuffer(1024)
+    let start = datetime.now().seconds
+    let received = socket.receiveFrom(raw, buf, 1024)
+    let elapsed = datetime.now().seconds - start
+
+    if buf.size > 0 {
+        // crude parse: skip IP header (assume 20B), then ICMP
+        let icmp = buf.data[20:]
+        let rtype = icmp[0].toInt()
+        let rid   = (icmp[4].toInt() << 8) + icmp[5].toInt()
+        let rseq  = (icmp[6].toInt() << 8) + icmp[7].toInt()
+        if rtype == ICMP_ECHO_REPLY && rid == id && rseq == seq {
+            console.Print("↩ Reply from " 
+                + addr.address + ": seq=" + seq.toString() 
+                + " time=" + elapsed.toString() + "s\n")
+            return
+        }
+    }
+    console.Print("✗ timeout for seq=" + seq.toString() + "\n")
+}
+
+// per‑host coroutine
+fn pingHost(target: string) {
+    // resolve name
+    let addr = socket.resolveHostname(target)
+    addr.port = socket.htons(0)  // raw ICMP ignores port
+
+    // open raw socket
+    var raw = socket.createSocket(socket.AF_INET, socket.SOCKET_RAW, socket.IPPROTO_ICMP)
+    raw.setTimeout(raw, 1000)
+
+    let id = coroutine.generateCoroutineId() & 0xFFFF
+    let seq = 1
+
+    // send 4 pings at 1s intervals
+    while seq <= 4 {
+        console.Print("PING " + target + " seq=" + seq.toString() + " …\n")
+        pingOnce(raw, addr, id, seq, 1000)
+        seq = seq + 1
+        datetime.sleep(1 * datetime.SECONDS_PER_SECOND)  // assume sleep available
+    }
+
+    raw.closeSocket(raw)
+}
+
+fn main() {
+    let hosts = ["8.8.8.8", "1.1.1.1", "localhost"]
+
+    // launch one coroutine per host
+    for h in hosts {
+        coroutine.go({ execute: true, data: "" // inline function:
+            fn() { pingHost(h) }
+        })
+    }
+
+    // let them run
+    coroutine.startScheduler()
+}
