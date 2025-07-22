@@ -1,0 +1,13 @@
+package main
+
+import math
+
+fn main() {
+    println("π:  " + toString(math.PI))
+    println("sin(π/6): " + toString(math.sin(math.PI/6)))
+    println("cos(π/3): " + toString(math.cos(math.PI/3)))
+    
+    println("Random [0,1): " + toString(math.random()))
+    println("Uniform [5,10]: " + toString(math.uniform(5.0,10.0)))
+    println("Normal μ=0,σ=1: " + toString(math.normal(0.0,1.0)))
+}
