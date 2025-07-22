@@ -1,0 +1,18 @@
+package main
+
+import http
+import datetime
+
+fn main() {
+    let client: http.HttpClient = http.createHttpClient()
+        |> http.setHttpClientTimeout(_, 10000)
+        |> http.setHttpClientUserAgent(_, "VextLang-Demo/1.0")
+    
+    let startTs = datetime.now()
+    let resp: http.HttpResponse = http.httpGet(client, "http://example.com")
+    let endTs   = datetime.now()
+    
+    println("Status:  " + toString(resp.statusCode) + " " + resp.statusText)
+    println("Time:    " + toString(datetime.getDifference(endTs, startTs).seconds) + "s")
+    println("Body → " + substring(resp.body, 0, 200) + "…")
+}
