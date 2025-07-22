@@ -1,0 +1,58 @@
+package main
+
+import socket
+import coroutine
+import datetime
+
+fn echoServer() {
+    let srv = socket.createTCPSocket()
+    srv |> socket.bindToPort(_, 9001)
+    srv |> socket.listenSocket(_, 5)
+    println("[Server] Listening on 9001…")
+    
+    while true {
+        let client = socket.acceptSocket(srv)
+        if client.fd >= 0 {
+            let buf = socket.createNetworkBuffer(1024)
+            let n = socket.receiveData(client, buf, 1024)
+            if n > 0 {
+                let msg = buf.data
+                println("[Server] Received: " + msg)
+                socket.sendData(client, "echo: " + msg)
+            }
+            socket.closeSocket(client)
+        }
+    }
+}
+
+fn echoClient() {
+    // wait a moment for server to start
+    coroutine.sleepCoroutine(500)
+    let cli = socket.createTCPSocket()
+    let addr = socket.resolveHostname("localhost")
+    addr.port = htons(9001)
+    socket.connectSocket(cli, addr)
+    
+    for i in 1..5 {
+        let ping = "ping #" + toString(i)
+        println("[Client] → " + ping)
+        socket.sendData(cli, ping)
+        
+        let buf = socket.createNetworkBuffer(1024)
+        let n = socket.receiveData(cli, buf, 1024)
+        if n > 0 {
+            println("[Client] ← " + buf.data)
+        }
+        
+        coroutine.sleepCoroutine(1000)
+    }
+    socket.closeSocket(cli)
+}
+
+fn main() {
+    go({ execute: echoServer, data: "" })
+    go({ execute: echoClient, data: "" })
+    
+    // Let them run for a bit…
+    coroutine.sleepCoroutine(7000)
+}
